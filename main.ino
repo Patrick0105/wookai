@@ -6,7 +6,7 @@
 SevSeg sevseg;
 const int sw = 8;                      // 按键开关连接至数字接脚第8脚
 const int sw2 = 9;                     // 按键开关2连接至数字接脚第9脚
-const int debounceDelay = 20;          // 按键开关稳定所需的时间
+const int debounceDelay = 50;          // 按键开关稳定所需的时间
 int val;                               // 按键开关状态
 int val2;                              // 按键开关2状态
 int swValue = 0;                       // 按键开关数值
@@ -234,13 +234,13 @@ void printYear(const RtcDateTime& dt) {
     unsigned long startTime = millis();
     for (unsigned long elapsed = 0; elapsed < 1000; elapsed = millis() - startTime) {
         lightDigit1(y1);
-        delay(delay_time);
+        delayMicroseconds(1000);
         lightDigit2(y2);
-        delay(delay_time);
+        delayMicroseconds(1000);
         lightDigit3(y3);
-        delay(delay_time);
+        delayMicroseconds(1000);
         lightDigit4(y4);
-        delay(delay_time);
+        delayMicroseconds(1000);
     }
 }
 
@@ -265,13 +265,13 @@ void printDate(const RtcDateTime& dt) {
     unsigned long startTime = millis();
     for (unsigned long elapsed = 0; elapsed < 1000; elapsed = millis() - startTime) {
         lightDigit1(d1);
-        delay(delay_time);
+        delayMicroseconds(1000);
         lightDigit2(d2);
-        delay(delay_time);
+        delayMicroseconds(1000);
         lightDigit3(m1);
-        delay(delay_time);
+        delayMicroseconds(1000);
         lightDigit4(m2);
-        delay(delay_time);
+        delayMicroseconds(1000);
     }    
 }
 
@@ -305,13 +305,13 @@ void printTime(const RtcDateTime& dt) {
     unsigned long startTime = millis();
     for (unsigned long elapsed = 0; elapsed < 1000; elapsed = millis() - startTime) {
         lightDigit1(t3);
-        delay(delay_time);
+        delayMicroseconds(1000);
         lightDigit2(t4);
-        delay(delay_time);
+        delayMicroseconds(1000);
         lightDigit3(t1);
-        delay(delay_time);
+        delayMicroseconds(1000);
         lightDigit4(t2);
-        delay(delay_time);
+        delayMicroseconds(1000);
     }
 }
 
@@ -336,12 +336,12 @@ void printMinuteSecond(const RtcDateTime& dt) {
     unsigned long startTime = millis();
     for (unsigned long elapsed = 0; elapsed < 1000; elapsed = millis() - startTime) {
         lightDigit1(s1);
-        delay(delay_time);
+        delayMicroseconds(1000);
         lightDigit2(s2);
-        delay(delay_time);
+        delayMicroseconds(1000);
         lightDigit3(m1);
-        delay(delay_time);
+        delayMicroseconds(1000);
         lightDigit4(m2);
-        delay(delay_time);
+        delayMicroseconds(1000);
     }
 }

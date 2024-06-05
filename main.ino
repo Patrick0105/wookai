@@ -1,3 +1,4 @@
+按鈕有沒有其他寫法啊，超難按
 #include <stdio.h>
 #include <string.h>
 #include <RtcDS1302.h>
@@ -10,6 +11,8 @@ int val;                               // 按键开关状态
 int swValue = 0;                       // 按键开关数值
 unsigned long lastDebounceTime = 0;    // 上一次消除抖动的时间
 bool displayMode = false;              // 显示模式，默认显示年月日
+unsigned long previousMillis = 0;
+const long interval = 1000; // 設置更新間隔為1000毫秒（1秒）
 
 ThreeWire myWire(3, 4, 2); // IO, SCLK, CE
 RtcDS1302<ThreeWire> Rtc(myWire);
@@ -111,26 +114,33 @@ void setup()
     pinMode(D4, OUTPUT);
 }
 
-void loop()
-{
+void loop() {
     val = digitalRead(sw);
     if (val == LOW && (millis() - lastDebounceTime) > debounceDelay) {
         displayMode = !displayMode;
         lastDebounceTime = millis();
-        while (digitalRead(sw) == LOW);  // 等待放开按键
+        while (digitalRead(sw) == LOW);  // 等待放開按鍵
     }
 
     RtcDateTime now = Rtc.GetDateTime();
-    if (displayMode) {
-        printTime(now);
-        delay(1000);
-        printMinuteSecond(now);
-        delay(1000);
-    } else {
-        printYear(now);
-        delay(1000);
-        printDate(now);
-        delay(1000);
+    unsigned long currentMillis = millis();
+
+    if (currentMillis - previousMillis >= interval) {
+        previousMillis = currentMillis;
+
+        if (displayMode) {
+            printTime(now);
+            delayMicroseconds(1000); // 用很短的延遲來防止顯示器更新過快
+            printMinuteSecond(now);
+            delayMicroseconds(1000); // 用很短的延遲來防止顯示器更新過快
+
+        } else {
+            printYear(now);
+            delayMicroseconds(1000); // 用很短的延遲來防止顯示器更新過快
+            printDate(now);
+            delayMicroseconds(1000); // 用很短的延遲來防止顯示器更新過快
+
+        }
     }
 }
 

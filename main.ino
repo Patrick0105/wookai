@@ -1,4 +1,3 @@
-按鈕有沒有其他寫法啊，超難按
 #include <stdio.h>
 #include <string.h>
 #include <RtcDS1302.h>
@@ -6,13 +5,17 @@
 
 SevSeg sevseg;
 const int sw = 8;                      // 按键开关连接至数字接脚第8脚
+const int sw2 = 9;                     // 按键开关2连接至数字接脚第9脚
 const int debounceDelay = 20;          // 按键开关稳定所需的时间
 int val;                               // 按键开关状态
+int val2;                              // 按键开关2状态
 int swValue = 0;                       // 按键开关数值
 unsigned long lastDebounceTime = 0;    // 上一次消除抖动的时间
+unsigned long lastDebounceTime2 = 0;   // 上一次消除抖动的时间2
 bool displayMode = false;              // 显示模式，默认显示年月日
+bool is24HourFormat = true;            // 默认24小时制
 unsigned long previousMillis = 0;
-const long interval = 1000; // 設置更新間隔為1000毫秒（1秒）
+const long interval = 1000;            // 設置更新間隔為1000毫秒（1秒）
 
 ThreeWire myWire(3, 4, 2); // IO, SCLK, CE
 RtcDS1302<ThreeWire> Rtc(myWire);
@@ -100,6 +103,7 @@ void setup()
 
     Serial.begin(9600);               // 设置串口传输速率为9600bps
     pinMode(sw, INPUT_PULLUP);         // 设置数字第8脚为输入模式(使用内部上拉电阻)
+    pinMode(sw2, INPUT_PULLUP);        // 设置数字第9脚为输入模式(使用内部上拉电阻)
 
     pinMode(pinA, OUTPUT);
     pinMode(pinB, OUTPUT);
@@ -120,6 +124,13 @@ void loop() {
         displayMode = !displayMode;
         lastDebounceTime = millis();
         while (digitalRead(sw) == LOW);  // 等待放開按鍵
+    }
+
+    val2 = digitalRead(sw2);
+    if (val2 == LOW && (millis() - lastDebounceTime2) > debounceDelay) {
+        is24HourFormat = !is24HourFormat;
+        lastDebounceTime2 = millis();
+        while (digitalRead(sw2) == LOW);  // 等待放開按鍵
     }
 
     RtcDateTime now = Rtc.GetDateTime();
@@ -277,8 +288,17 @@ void printTime(const RtcDateTime& dt) {
                dt.Second());
     Serial.print(datestring);
 
-    int t1 = dt.Hour() % 10;
-    int t2 = (dt.Hour() / 10) % 10;
+    int hour = dt.Hour();
+    if (!is24HourFormat) {
+        if (hour == 0) {
+            hour = 12; // Midnight hour
+        } else if (hour > 12) {
+            hour -= 12; // Convert to PM hours
+        }
+    }
+
+    int t1 = hour % 10;
+    int t2 = (hour / 10) % 10;
     int t3 = dt.Minute() % 10;
     int t4 = (dt.Minute() / 10) % 10;
 

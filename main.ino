@@ -15,6 +15,7 @@ unsigned long lastDebounceTime2 = 0;   // 上一次消除抖动的时间2
 bool displayMode = false;              // 显示模式，默认显示年月日
 bool is24HourFormat = true;            // 默认24小时制
 bool settingMode = false;              // 设定模式
+int settingDate = 0;              // 默认为不是日期设定模式
 int settingStep = 0;                   // 当前设定步骤
 unsigned long previousMillis = 0;
 const long interval = 1000;            // 設置更新間隔為1000毫秒（1秒）
@@ -121,6 +122,13 @@ void loop() {
         RtcDateTime now = Rtc.GetDateTime(); // 获取当前时间以便进行设置
         splitTime(now);
         lastDebounceTime = millis();
+        
+        // if (displayMode) {  // 根据当前显示模式决定进入时间还是日期设定模式
+        //     settingDate = 1;
+        // } else {
+        //     settingDate = 0;
+        // }
+        
         while (digitalRead(sw) == LOW && digitalRead(sw2) == LOW);  // 等待放開按鍵
     }
 
@@ -153,11 +161,13 @@ void handleDisplayMode() {
         previousMillis = currentMillis;
 
         if (displayModeSwitch) {
+            settingDate = 0;
             printTime(now);
             delayMicroseconds(1000); // 用很短的延遲來防止顯示器更新過快
             printMinuteSecond(now);
             delayMicroseconds(1000); // 用很短的延遲來防止顯示器更新過快
         } else {
+            settingDate = 1;
             printYear(now);
             delayMicroseconds(1000); // 用很短的延遲來防止顯示器更新過快
             printDate(now);
@@ -168,19 +178,28 @@ void handleDisplayMode() {
 
 void handleSettingMode() {
     static int timeParts[4] = {0}; // Array to hold hour and minute digits
+    static int dateParts[4] = {0}; // Array to hold month and day digits
 
     while (settingMode) {
         val = digitalRead(sw);
         val2 = digitalRead(sw2);
 
         if (val == LOW && (millis() - lastDebounceTime) > debounceDelay) {
-            timeParts[settingStep] = (timeParts[settingStep] - 1 + 10) % 10;  // Decrement current setting
+            if (settingDate) {
+                dateParts[settingStep] = (dateParts[settingStep] - 1 + 10) % 10;  // Decrement current setting
+            } else {
+                timeParts[settingStep] = (timeParts[settingStep] - 1 + 10) % 10;
+            }
             lastDebounceTime = millis();
             while (digitalRead(sw) == LOW);  // 等待放開按鍵
         }
 
         if (val2 == LOW && (millis() - lastDebounceTime2) > debounceDelay) {
-            timeParts[settingStep] = (timeParts[settingStep] + 1) % 10;  // Increment current setting
+            if (settingDate) {
+                dateParts[settingStep] = (dateParts[settingStep] + 1) % 10;  // Increment current setting
+            } else {
+                timeParts[settingStep] = (timeParts[settingStep] + 1) % 10;
+            }
             lastDebounceTime2 = millis();
             while (digitalRead(sw2) == LOW);  // 等待放開按鍵
         }
@@ -193,36 +212,84 @@ void handleSettingMode() {
 
             if (settingStep >= 4) {
                 RtcDateTime now = Rtc.GetDateTime();
-                RtcDateTime newTime(now.Year(), now.Month(), now.Day(),
-                    timeParts[0] * 10 + timeParts[1],
-                    timeParts[2] * 10 + timeParts[3],
-                    0);  // 設定秒數為 0
-                Rtc.SetDateTime(newTime);
+                Serial.print(settingDate);
+                if (settingDate == 1) {
+                    // Debug output
+                    Serial.print("Setting Date: ");
+                    Serial.print(dateParts[2] * 10 + dateParts[3]);
+                    Serial.print("/");
+                    Serial.println(dateParts[0] * 10 + dateParts[1]);
+
+                    RtcDateTime newDate(
+                        now.Year(),
+                        dateParts[2] * 10 + dateParts[3],  // Month
+                        dateParts[0] * 10 + dateParts[1],  // Day
+                        now.Hour(),
+                        now.Minute(),
+                        now.Second()
+                    );
+                    Rtc.SetDateTime(newDate);
+                } else {
+                    // Debug output
+                    Serial.print("Setting Time: ");
+                    Serial.print(timeParts[0] * 10 + timeParts[1]);
+                    Serial.print(":");
+                    Serial.println(timeParts[2] * 10 + timeParts[3]);
+                    
+                    RtcDateTime newTime(
+                        now.Year(),
+                        now.Month(),
+                        now.Day(),
+                        timeParts[0] * 10 + timeParts[1],  // Hour
+                        timeParts[2] * 10 + timeParts[3],  // Minute
+                        0  // Seconds set to 0
+                    );
+                    Rtc.SetDateTime(newTime);
+                }
                 settingMode = false;
+                settingStep = 0;  // 重置设置步骤
             }
         }
 
         // Display the current setting
         unsigned long startTime = millis();
         for (unsigned long elapsed = 0; elapsed < 1000; elapsed = millis() - startTime) {
-            lightDigit1(timeParts[0]);
-            delayMicroseconds(1000);
-            lightDigit2(timeParts[1]);
-            delayMicroseconds(1000);
-            lightDigit3(timeParts[2]);
-            delayMicroseconds(1000);
-            lightDigit4(timeParts[3]);
-            delayMicroseconds(1000);
+            if (settingDate) {
+                lightDigit1(dateParts[0]);
+                delayMicroseconds(1000);
+                lightDigit2(dateParts[1]);
+                delayMicroseconds(1000);
+                lightDigit3(dateParts[2]);
+                delayMicroseconds(1000);
+                lightDigit4(dateParts[3]);
+                delayMicroseconds(1000);
+            } else {
+                lightDigit1(timeParts[0]);
+                delayMicroseconds(1000);
+                lightDigit2(timeParts[1]);
+                delayMicroseconds(1000);
+                lightDigit3(timeParts[2]);
+                delayMicroseconds(1000);
+                lightDigit4(timeParts[3]);
+                delayMicroseconds(1000);
+            }
         }
     }
 }
 
 void splitTime(const RtcDateTime& dt) {
-    static int timeParts[6]; // Array to hold hour, minute, second, etc.
+    static int timeParts[4];  // Array to hold hour and minute digits
+    static int dateParts[4];  // Array to hold day and month digits
+
     timeParts[0] = dt.Hour() / 10;
     timeParts[1] = dt.Hour() % 10;
     timeParts[2] = dt.Minute() / 10;
     timeParts[3] = dt.Minute() % 10;
+
+    dateParts[0] = dt.Day() / 10;
+    dateParts[1] = dt.Day() % 10;
+    dateParts[2] = dt.Month() / 10;
+    dateParts[3] = dt.Month() % 10;
 }
 
 void pickDigit(int x) {

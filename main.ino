@@ -15,7 +15,7 @@ unsigned long lastDebounceTime2 = 0;   // 上一次消除抖动的时间2
 bool displayMode = false;              // 显示模式，默认显示年月日
 bool is24HourFormat = true;            // 默认24小时制
 bool settingMode = false;              // 设定模式
-int settingDate = 0;              // 默认为不是日期设定模式
+int settingDate = 0;                   // 默认为不是日期设定模式
 int settingStep = 0;                   // 当前设定步骤
 unsigned long previousMillis = 0;
 const long interval = 1000;            // 設置更新間隔為1000毫秒（1秒）
@@ -137,6 +137,7 @@ void loop() {
     } else {
         handleDisplayMode();
     }
+
 }
 
 void handleDisplayMode() {
@@ -150,10 +151,18 @@ void handleDisplayMode() {
 
     val2 = digitalRead(sw2);
     if (val2 == LOW && (millis() - lastDebounceTime2) > debounceDelay) {
-        is24HourFormat = !is24HourFormat;
-        lastDebounceTime2 = millis();
-        while (digitalRead(sw2) == LOW);  // 等待放開按鍵
-    }
+      if (displayModeSwitch == false) {  // 仅在日期模式下进入年份设置模式
+          settingDate = 2;
+          settingMode = true;
+          lastDebounceTime2 = millis();
+          handleYearSettingMode();}
+      else{
+      is24HourFormat = !is24HourFormat;
+          lastDebounceTime2 = millis();
+          while (digitalRead(sw2) == LOW);  // 等待放開按鍵
+      }
+        
+  }
 
     RtcDateTime now = Rtc.GetDateTime();
     unsigned long currentMillis = millis();
@@ -185,7 +194,7 @@ void handleSettingMode() {
         val2 = digitalRead(sw2);
 
         if (val == LOW && (millis() - lastDebounceTime) > debounceDelay) {
-            if (settingDate) {
+            if (settingDate == 1) {
                 dateParts[settingStep] = (dateParts[settingStep] - 1 + 10) % 10;  // Decrement current setting
             } else {
                 timeParts[settingStep] = (timeParts[settingStep] - 1 + 10) % 10;
@@ -195,7 +204,7 @@ void handleSettingMode() {
         }
 
         if (val2 == LOW && (millis() - lastDebounceTime2) > debounceDelay) {
-            if (settingDate) {
+            if (settingDate == 1) {
                 dateParts[settingStep] = (dateParts[settingStep] + 1) % 10;  // Increment current setting
             } else {
                 timeParts[settingStep] = (timeParts[settingStep] + 1) % 10;
@@ -254,7 +263,7 @@ void handleSettingMode() {
         // Display the current setting
         unsigned long startTime = millis();
         for (unsigned long elapsed = 0; elapsed < 1000; elapsed = millis() - startTime) {
-            if (settingDate) {
+            if (settingDate == 1) {
                 lightDigit1(dateParts[0]);
                 delayMicroseconds(1000);
                 lightDigit2(dateParts[1]);
@@ -273,6 +282,65 @@ void handleSettingMode() {
                 lightDigit4(timeParts[3]);
                 delayMicroseconds(1000);
             }
+        }
+    }
+}
+
+void handleYearSettingMode() {
+    static int yearParts[4] = {0}; // Array to hold year digits
+    
+    while (settingMode) {
+        val = digitalRead(sw);
+        val2 = digitalRead(sw2);
+
+        if (val == LOW && (millis() - lastDebounceTime) > debounceDelay) {
+            yearParts[settingStep] = (yearParts[settingStep] - 1 + 10) % 10;  // Decrement current setting
+            lastDebounceTime = millis();
+            while (digitalRead(sw) == LOW);  // 等待放開按鍵
+        }
+
+        if (val2 == LOW && (millis() - lastDebounceTime2) > debounceDelay) {
+            yearParts[settingStep] = (yearParts[settingStep] + 1) % 10;  // Increment current setting
+            lastDebounceTime2 = millis();
+            while (digitalRead(sw2) == LOW);  // 等待放開按鍵
+        }
+
+        if (val == LOW && val2 == LOW && (millis() - lastDebounceTime) > debounceDelay) {
+            // Move to the next setting step
+            settingStep++;
+            lastDebounceTime = millis();
+            while (digitalRead(sw) == LOW && digitalRead(sw2) == LOW);  // 等待放開按鍵
+
+            if (settingStep >= 4) {
+                RtcDateTime now = Rtc.GetDateTime();
+                Serial.print("Setting Year: ");
+                Serial.println(yearParts[0] * 1000 + yearParts[1] * 100 + yearParts[2] * 10 + yearParts[3]);
+
+                RtcDateTime newYear(
+                    yearParts[0] * 1000 + yearParts[1] * 100 + yearParts[2] * 10 + yearParts[3], // Year
+                    now.Month(),
+                    now.Day(),
+                    now.Hour(),
+                    now.Minute(),
+                    now.Second()
+                );
+                Rtc.SetDateTime(newYear);
+                settingMode = false;
+                settingStep = 0;  // 重置设置步骤
+            }
+        }
+
+        // Display the current setting
+        unsigned long startTime = millis();
+        for (unsigned long elapsed = 0; elapsed < 1000; elapsed = millis() - startTime) {
+            lightDigit1(yearParts[0]);
+            delayMicroseconds(1000);
+            lightDigit2(yearParts[1]);
+            delayMicroseconds(1000);
+            lightDigit3(yearParts[2]);
+            delayMicroseconds(1000);
+            lightDigit4(yearParts[3]);
+            delayMicroseconds(1000);
         }
     }
 }

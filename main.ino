@@ -167,7 +167,7 @@ void handleDisplayMode() {
 }
 
 void handleSettingMode() {
-    static int timeParts[6] = {0}; // Array to hold hour, minute, second, etc.
+    static int timeParts[4] = {0}; // Array to hold hour and minute digits
 
     while (settingMode) {
         val = digitalRead(sw);
@@ -191,11 +191,12 @@ void handleSettingMode() {
             lastDebounceTime = millis();
             while (digitalRead(sw) == LOW && digitalRead(sw2) == LOW);  // 等待放開按鍵
 
-            if (settingStep >= 6) {
-                RtcDateTime newTime(2023, 1, 1,
+            if (settingStep >= 4) {
+                RtcDateTime now = Rtc.GetDateTime();
+                RtcDateTime newTime(now.Year(), now.Month(), now.Day(),
                     timeParts[0] * 10 + timeParts[1],
                     timeParts[2] * 10 + timeParts[3],
-                    timeParts[4] * 10 + timeParts[5]);
+                    0);  // 設定秒數為 0
                 Rtc.SetDateTime(newTime);
                 settingMode = false;
             }
@@ -222,8 +223,6 @@ void splitTime(const RtcDateTime& dt) {
     timeParts[1] = dt.Hour() % 10;
     timeParts[2] = dt.Minute() / 10;
     timeParts[3] = dt.Minute() % 10;
-    timeParts[4] = dt.Second() / 10;
-    timeParts[5] = dt.Second() % 10;
 }
 
 void pickDigit(int x) {

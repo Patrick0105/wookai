@@ -14,6 +14,8 @@ unsigned long lastDebounceTime = 0;    // 上一次消除抖动的时间
 unsigned long lastDebounceTime2 = 0;   // 上一次消除抖动的时间2
 bool displayMode = false;              // 显示模式，默认显示年月日
 bool is24HourFormat = true;            // 默认24小时制
+bool settingMode = false;              // 设定模式
+int settingStep = 0;                   // 当前设定步骤
 unsigned long previousMillis = 0;
 const long interval = 1000;            // 設置更新間隔為1000毫秒（1秒）
 
@@ -47,8 +49,7 @@ byte seven_seg_digits[10][7] = { { 1,1,1,1,1,1,0 },  // = 0
                                  { 1,1,1,1,0,1,1 }   // = 9
                              };
 
-void setup()
-{
+void setup() {
     Rtc.Begin();
 
     RtcDateTime compiled = RtcDateTime(__DATE__, __TIME__);
@@ -57,36 +58,28 @@ void setup()
     printTime(compiled);
     Serial.println();
 
-    if (!Rtc.IsDateTimeValid())
-    {
+    if (!Rtc.IsDateTimeValid()) {
         Serial.println("RTC lost confidence in the DateTime!");
         Rtc.SetDateTime(compiled);
     }
 
-    if (Rtc.GetIsWriteProtected())
-    {
+    if (Rtc.GetIsWriteProtected()) {
         Serial.println("RTC was write protected, enabling writing now");
         Rtc.SetIsWriteProtected(false);
     }
 
-    if (!Rtc.GetIsRunning())
-    {
+    if (!Rtc.GetIsRunning()) {
         Serial.println("RTC was not actively running, starting now");
         Rtc.SetIsRunning(true);
     }
 
     RtcDateTime now = Rtc.GetDateTime();
-    if (now < compiled)
-    {
+    if (now < compiled) {
         Serial.println("RTC is older than compile time!  (Updating DateTime)");
         Rtc.SetDateTime(compiled);
-    }
-    else if (now > compiled)
-    {
+    } else if (now > compiled) {
         Serial.println("RTC is newer than compile time. (this is expected)");
-    }
-    else if (now == compiled)
-    {
+    } else if (now == compiled) {
         Serial.println("RTC is the same as compile time! (not expected but all is fine)");
     }
 
@@ -120,8 +113,29 @@ void setup()
 
 void loop() {
     val = digitalRead(sw);
+    val2 = digitalRead(sw2);
+
+    if (val == LOW && val2 == LOW && (millis() - lastDebounceTime) > debounceDelay) {
+        settingMode = !settingMode;
+        settingStep = 0;  // 重置设定步骤
+        RtcDateTime now = Rtc.GetDateTime(); // 获取当前时间以便进行设置
+        splitTime(now);
+        lastDebounceTime = millis();
+        while (digitalRead(sw) == LOW && digitalRead(sw2) == LOW);  // 等待放開按鍵
+    }
+
+    if (settingMode) {
+        handleSettingMode();
+    } else {
+        handleDisplayMode();
+    }
+}
+
+void handleDisplayMode() {
+    static bool displayModeSwitch = false;  // 顯示模式切換
+    val = digitalRead(sw);
     if (val == LOW && (millis() - lastDebounceTime) > debounceDelay) {
-        displayMode = !displayMode;
+        displayModeSwitch = !displayModeSwitch;
         lastDebounceTime = millis();
         while (digitalRead(sw) == LOW);  // 等待放開按鍵
     }
@@ -135,24 +149,81 @@ void loop() {
 
     RtcDateTime now = Rtc.GetDateTime();
     unsigned long currentMillis = millis();
-
     if (currentMillis - previousMillis >= interval) {
         previousMillis = currentMillis;
 
-        if (displayMode) {
+        if (displayModeSwitch) {
             printTime(now);
             delayMicroseconds(1000); // 用很短的延遲來防止顯示器更新過快
             printMinuteSecond(now);
             delayMicroseconds(1000); // 用很短的延遲來防止顯示器更新過快
-
         } else {
             printYear(now);
             delayMicroseconds(1000); // 用很短的延遲來防止顯示器更新過快
             printDate(now);
             delayMicroseconds(1000); // 用很短的延遲來防止顯示器更新過快
-
         }
     }
+}
+
+void handleSettingMode() {
+    static int timeParts[6] = {0}; // Array to hold hour, minute, second, etc.
+
+    while (settingMode) {
+        val = digitalRead(sw);
+        val2 = digitalRead(sw2);
+
+        if (val == LOW && (millis() - lastDebounceTime) > debounceDelay) {
+            timeParts[settingStep] = (timeParts[settingStep] - 1 + 10) % 10;  // Decrement current setting
+            lastDebounceTime = millis();
+            while (digitalRead(sw) == LOW);  // 等待放開按鍵
+        }
+
+        if (val2 == LOW && (millis() - lastDebounceTime2) > debounceDelay) {
+            timeParts[settingStep] = (timeParts[settingStep] + 1) % 10;  // Increment current setting
+            lastDebounceTime2 = millis();
+            while (digitalRead(sw2) == LOW);  // 等待放開按鍵
+        }
+
+        if (val == LOW && val2 == LOW && (millis() - lastDebounceTime) > debounceDelay) {
+            // Move to the next setting step
+            settingStep++;
+            lastDebounceTime = millis();
+            while (digitalRead(sw) == LOW && digitalRead(sw2) == LOW);  // 等待放開按鍵
+
+            if (settingStep >= 6) {
+                RtcDateTime newTime(2023, 1, 1,
+                    timeParts[0] * 10 + timeParts[1],
+                    timeParts[2] * 10 + timeParts[3],
+                    timeParts[4] * 10 + timeParts[5]);
+                Rtc.SetDateTime(newTime);
+                settingMode = false;
+            }
+        }
+
+        // Display the current setting
+        unsigned long startTime = millis();
+        for (unsigned long elapsed = 0; elapsed < 1000; elapsed = millis() - startTime) {
+            lightDigit1(timeParts[0]);
+            delayMicroseconds(1000);
+            lightDigit2(timeParts[1]);
+            delayMicroseconds(1000);
+            lightDigit3(timeParts[2]);
+            delayMicroseconds(1000);
+            lightDigit4(timeParts[3]);
+            delayMicroseconds(1000);
+        }
+    }
+}
+
+void splitTime(const RtcDateTime& dt) {
+    static int timeParts[6]; // Array to hold hour, minute, second, etc.
+    timeParts[0] = dt.Hour() / 10;
+    timeParts[1] = dt.Hour() % 10;
+    timeParts[2] = dt.Minute() / 10;
+    timeParts[3] = dt.Minute() % 10;
+    timeParts[4] = dt.Second() / 10;
+    timeParts[5] = dt.Second() % 10;
 }
 
 void pickDigit(int x) {
@@ -215,15 +286,8 @@ char transChar(int number) {
 
 void printYear(const RtcDateTime& dt) {
     char datestring[20];
-    snprintf_P(datestring,
-               countof(datestring),
-               PSTR("%02u/%02u/%04u %02u:%02u:%02u"),
-               dt.Month(),
-               dt.Day(),
-               dt.Year(),
-               dt.Hour(),
-               dt.Minute(),
-               dt.Second());
+    snprintf_P(datestring, countof(datestring), PSTR("%02u/%02u/%04u %02u:%02u:%02u"),
+               dt.Month(), dt.Day(), dt.Year(), dt.Hour(), dt.Minute(), dt.Second());
     Serial.print(datestring);
 
     int y1 = dt.Year() % 10;
@@ -246,15 +310,8 @@ void printYear(const RtcDateTime& dt) {
 
 void printDate(const RtcDateTime& dt) {
     char datestring[20];
-    snprintf_P(datestring,
-               countof(datestring),
-               PSTR("%02u/%02u/%04u %02u:%02u:%02u"),
-               dt.Month(),
-               dt.Day(),
-               dt.Year(),
-               dt.Hour(),
-               dt.Minute(),
-               dt.Second());
+    snprintf_P(datestring, countof(datestring), PSTR("%02u/%02u/%04u %02u:%02u:%02u"),
+               dt.Month(), dt.Day(), dt.Year(), dt.Hour(), dt.Minute(), dt.Second());
     Serial.print(datestring);
 
     int m1 = dt.Month() % 10;
@@ -277,15 +334,8 @@ void printDate(const RtcDateTime& dt) {
 
 void printTime(const RtcDateTime& dt) {
     char datestring[20];
-    snprintf_P(datestring,
-               countof(datestring),
-               PSTR("%02u/%02u/%04u %02u:%02u:%02u"),
-               dt.Month(),
-               dt.Day(),
-               dt.Year(),
-               dt.Hour(),
-               dt.Minute(),
-               dt.Second());
+    snprintf_P(datestring, countof(datestring), PSTR("%02u/%02u/%04u %02u:%02u:%02u"),
+               dt.Month(), dt.Day(), dt.Year(), dt.Hour(), dt.Minute(), dt.Second());
     Serial.print(datestring);
 
     int hour = dt.Hour();
@@ -317,15 +367,8 @@ void printTime(const RtcDateTime& dt) {
 
 void printMinuteSecond(const RtcDateTime& dt) {
     char datestring[20];
-    snprintf_P(datestring,
-               countof(datestring),
-               PSTR("%02u/%02u/%04u %02u:%02u:%02u"),
-               dt.Month(),
-               dt.Day(),
-               dt.Year(),
-               dt.Hour(),
-               dt.Minute(),
-               dt.Second());
+    snprintf_P(datestring, countof(datestring), PSTR("%02u/%02u/%04u %02u:%02u:%02u"),
+               dt.Month(), dt.Day(), dt.Year(), dt.Hour(), dt.Minute(), dt.Second());
     Serial.print(datestring);
 
     int s1 = dt.Second() % 10;
